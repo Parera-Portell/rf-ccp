@@ -1,5 +1,5 @@
 # rf-ccp
-Common Conversion Point Stacking for receiver function (RF) analysis. Input data must be in SAC format.
+Common Conversion Point Stacking for receiver function (RF) analysis. Input data must be in SAC format. The header must contain BAZ, STLA and STLO, as well as an extra field where the ray parameter is stored.
 
 Example parameter file:
 
