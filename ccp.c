@@ -1,19 +1,19 @@
 /*
  * ccp.c
- * 
+ *
  * Copyright 2021 Joan Antoni Parera Portell
- * 
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
- * 
+ *
+ *
  * Variables de la funció main:
  * t0: temps inicial; tf: temps final; w-wsum: variables per controlar
  * el nombre de paràmetres que es llegeixen del fitxer de paràmetres;
@@ -21,8 +21,8 @@
  * per control d'errors; nlay-ncols: nombre de files i columnes del
  * perfil; delta: freqüència de les dades en segons; dx-dz: increment de
  * distància lateral i vertical del perfil; depmin-depmax: profunditat
- * mínima i màxima del perfil; dep: variable de control de la profunditat; 
- * beg: temps entre inici de les dades i arribada d'ona P; p: paràmetre 
+ * mínima i màxima del perfil; dep: variable de control de la profunditat;
+ * beg: temps entre inici de les dades i arribada d'ona P; p: paràmetre
  * de raig sísmic; z: variable de control de la profunditat del perfil;
  * inilat-inilon-finlat-finlon:
  * latitud i longitud d'inici i final del perfil; len: longitud de perfil;
@@ -62,22 +62,22 @@
  * punts, així com l'azimut */
 void garc(float lat0, float lon0, float lat1, float lon1, float *dist,
 		float *az){
-			
+
 	float dlon, angle, az_angle, x, y;
-	
+
 	lat0 *= DEG2RAD; lon0 *= DEG2RAD; lat1 *= DEG2RAD; lon1 *= DEG2RAD;
 	dlon = lon1-lon0;
-	
+
 	/* Distància */
 	angle = acos(sin(lat0)*sin(lat1)+cos(lat0)*cos(lat1)*cos(dlon));
 	*dist = angle*RAD2DEG*DEG2KM;
-	
+
 	/* Azimut */
 	x = sin(dlon)*cos(lat1);
 	y = cos(lat0)*sin(lat1)-sin(lat0)*cos(lat1)*cos(dlon);
 	az_angle = atan2(x,y);
 	*az	= az_angle*RAD2DEG;
-	
+
 	if (*az < 0){
 		*az += 360.0;}
 }
@@ -89,17 +89,8 @@ void garc(float lat0, float lon0, float lat1, float lon1, float *dist,
  * i la distància y de l'estació respecte del perfil en km */
 void proj(float dist, float az0, float az1, float *x, float *y){
 
-	// float sidea, sideb, anglea, angleb, anglec, sina, sinb;
-	// anglec=90;
-	// angleb=az0-az1;
-	// anglea=180-anglec-fabs(angleb);
-	// dist *= KM2DEG*DEG2RAD; anglea *= DEG2RAD; angleb *= DEG2RAD; anglec *= DEG2RAD;
-	// sina=sin(anglea)*sin(dist)/sin(anglec);
-	// sinb=sin(angleb)*sin(dist)/sin(anglec);
-	// *x = asin(sina)*RAD2DEG*DEG2KM;
-	// *y = asin(sinb)*RAD2DEG*DEG2KM;
-
 	float azdiff;
+
 	azdiff = az0-az1;
 	azdiff *= DEG2RAD;
 	*x = dist*cos(azdiff);
@@ -109,43 +100,43 @@ void proj(float dist, float az0, float az1, float *x, float *y){
 
 /* Funció principal */
 void main(int argc, char **argv){
-	
+
 	int t0, w, n, wsum, nlen, nerr, nlay, ncols, max=MAX, i, j, k, ray;
 	float delta, dx, dz, dep, depmin, depmax, beg, p, array[MAX], z,
 	inilat, inilon, finlat, finlon, len, azim, stla, stlo, baz, hw,
-	az0, az1, dist0, dist1, x, y, xi, yi, ds, dt, a, b, c, up, us, zf, nu, 
+	az0, az1, dist0, dist1, x, y, xi, yi, ds, dt, a, b, c, up, us, zf, nu,
 	acctime, amp, fzr, wl, xamp, dzf, stx, l, q, zv, modn,
 	x0, x1, y0, y1, fz, gauss;
-	char rf[500], outfile[500], outres[500], model[500], pvar[20];
+	char rf[500], outfile[500], model[500], pvar[20];
 	char *prm = argv[1];
 	char *rflist = argv[2];
-	FILE *prm_file, *list_file, *mod_file, *out_file, *out_res;
+	FILE *prm_file, *list_file, *mod_file, *out_file;
 	/* Arrays de l'FFT */
 	fftw_complex fftin[MAX], fftout[MAX], phase;
 	fftw_plan plan1, plan2;
-	
+
 	if(argc < 3){
 		printf("\nUsage: ccp [par file] [rf list]\n");
 		exit(1);
 	}
-	
+
 	/* ---------Comprovar si existeix el fitxer de paràmetres-------- */
 	prm_file = fopen(prm, "r");
 	if(prm_file == NULL){
 		printf("\nParameter file doesn't exist.\n");
 		exit(1);
 	}
-	
+
 	printf("\n*******************************************************\n");
 	printf("******************** CCP STACKING *********************\n");
 	printf("*******************************************************\n");
 	printf("per Joan A. Parera Portell (2023)\n");
 	printf("\nPar. file: %s\n", prm);
-	printf("RF file: %s\n", rflist);	
-	
-	
+	printf("RF file: %s\n", rflist);
+
+
 	/* ---------------Lectura del fitxer de paràmetres--------------- */
-	printf("\n-Parameters-\n");	
+	printf("\n-Parameters-\n");
 	w=0;
 	wsum=0;
 	w=fscanf(prm_file, "%f", &inilat); wsum += w;
@@ -157,7 +148,6 @@ void main(int argc, char **argv){
 	w=fscanf(prm_file, "%f,%f", &depmin, &depmax); wsum += w;
 	w=fscanf(prm_file, "%f", &hw); wsum += w;
 	w=fscanf(prm_file, "%s", outfile); wsum += w;
-	w=fscanf(prm_file, "%s", outres); wsum += w;
 	w=fscanf(prm_file, "%s", model); wsum += w;
 	w=fscanf(prm_file, "%s", pvar); wsum += w;
 	w=fscanf(prm_file, "%f", &zv); wsum += w;
@@ -165,9 +155,9 @@ void main(int argc, char **argv){
 	w=fscanf(prm_file, "%f", &gauss); wsum += w;
 	w=fscanf(prm_file, "%d", &ray); wsum += w;
 	fclose(prm_file);
-	
+
 	/* Comprovar si tots els paràmetres s'han llegit correctament */
-	if(wsum != 18){
+	if(wsum != 17){
 		printf("Error reading parameter file. Exiting...\n");
 		exit(1);}
 
@@ -178,27 +168,26 @@ void main(int argc, char **argv){
 	printf("Min/max depths: \t%.2f %.2f km\n", depmin, depmax);
 	printf("Half width: \t\t%.2f km\n", hw);
 	printf("Output slice: \t\t%s\n", outfile);
-	printf("Sampling slice: \t%s\n", outres);
 	printf("Earth model: \t\t%s\n", model);
 	printf("Ray param. variable: \t%s\n", pvar);
 	printf("Depth scaling exp. term:%.2f\n", zv);
 	printf("Phase weight exp. term: %.2f\n", nu);
 	printf("Gaussian width param.: \t%.2f\n", gauss);
 	printf("FZ (0) or rays (1): \t%d\n", ray);
-	
+
 	/* Comprovar si la llista de RFs existeix */
 	list_file = fopen(rflist, "r");
 	if(list_file == NULL){
 		printf("\nList file doesn't exist.\n");
 		exit(1);}
 	fclose(list_file);
-	
+
 	/* Comprovar si el fitxer del model existeix */
 	mod_file = fopen(model, "r");
 	if(mod_file == NULL){
 		printf("\nModel file doesn't exist.\n");
 		exit(1);}
-	
+
 	/* Lectura i transformació del model de gradient a model de capes */
 	nlay=round(depmax/dz); /* nombre de capes */
 	/* Definició d'estructures per desar el model */
@@ -208,7 +197,7 @@ void main(int argc, char **argv){
 			float dep0[1000], vp0[1000], vs0[1000];};
 	struct learthmodel emod; /* model nou */
 	struct earthmodel emod0; /* model original */
-	
+
 	mod_file = fopen(model, "r");
 	w=3;
 	n=0;
@@ -261,7 +250,7 @@ void main(int argc, char **argv){
 			pnorm[i*ncols+j] = 1;
 		}
 	}
-	
+
 	/* --------------Start looping through Rfs in list--------------- */
 	list_file = fopen(rflist, "r");
 	w = 0;
@@ -278,13 +267,13 @@ void main(int argc, char **argv){
 		if (nerr != 0){
 			printf("\nError reading SAC file: %s\n", rf);
 			exit (nerr);}
-		
+
 		/* Call getfhv (SAC library) to get variables from header */
 		getfhv(pvar, &p, &nerr, strlen(pvar));
 		getfhv("BAZ", &baz, &nerr, strlen("BAZ"));
 		getfhv("STLA", &stla, &nerr, strlen("STLA"));
 		getfhv("STLO", &stlo, &nerr, strlen("STLO"));
-		
+
 		if(ray==0){
 			if(w==0){
 				/* FFT directa*/
@@ -320,7 +309,7 @@ void main(int argc, char **argv){
 		garc(inilat,inilon,stla,stlo,&dist0,&az0);
 		proj(dist0,az0,azim,&x,&y);
 		stx = x;
-		
+
 		/* Inici dels càlculs pel CCCP */
 		/* Comprovació si el temps d'inici és positiu o negatiu (respecte
 		 * la P directa) */
@@ -358,7 +347,7 @@ void main(int argc, char **argv){
 				x += xi;
 				y += yi;
 				if(ray==0){
-					phase = (fftout[k]+fftout[k-1]+fftout[k+1])/3;
+					phase = (fftout[k]);
 					fz = 1/gauss;
 					wl = fz*(1/us);
 					fzr = sqrtf(0.5*wl*(dz*j)+0.0625*wl*wl);
@@ -403,12 +392,13 @@ void main(int argc, char **argv){
 	}
 	printf("%d!\n", w);
 	fclose(list_file);
-	
+
 	/* Aplicació de la fase a les amplituds */
 	if(ray==0){
 		for(i=0; i<nlay; i++){
 			for(w=0; w<ncols; w++){
 				perfil[i*ncols+w] /= sqrtf(pnorm[i*ncols+w]);
+				// perfil[i*ncols+w] /= pnorm[i*ncols+w];
 				absphase[i*ncols+w] = powf(fabs(pphase[i*ncols+w])/pnorm[i*ncols+w],nu);
 				/* Suavitzat per files*/
 				if(w>0){
@@ -425,7 +415,7 @@ void main(int argc, char **argv){
 				perfil[i*ncols+w] *= absphase[i*ncols+w];
 			}
 		}
-	/* Suavitzat per columnes cap endavant i cap enrere per evitar 
+	/* Suavitzat per columnes cap endavant i cap enrere per evitar
 	 * desplaçament */
 		for(w=0; w<ncols; w++){
 			for(i=0; i<nlay; i++){
@@ -459,9 +449,7 @@ void main(int argc, char **argv){
 
 	/* Escriptura a un fitxer */
 	out_file = fopen(outfile, "w");
-	out_res = fopen(outres, "w");
-	fprintf(out_file, "%s,%s,%s,%s,%s,%s\n", "x","z","a","lat","lon","zdeg");
-	fprintf(out_res, "%s,%s,%s\n", "x","z","a");
+	fprintf(out_file, "%s,%s,%s,%s,%s,%s,%s\n", "x","z","a","lat","lon","zdeg","d");
 	for(i=0; i<nlay; i++){
 		for(w=0; w<ncols; w++){
 			a = w*dx+dx/2;
@@ -470,13 +458,11 @@ void main(int argc, char **argv){
 			stlo=inilon+atan((sin(a*KM2DEG*DEG2RAD)*sin(azim*DEG2RAD))/(cos(inilat*DEG2RAD)*cos(a*KM2DEG*DEG2RAD)-sin(inilat*DEG2RAD)*sin(a*KM2DEG*DEG2RAD)*cos(azim*DEG2RAD)))*RAD2DEG;
 			c = b*KM2DEG;
 			if(i*dz>=depmin){
-				fprintf(out_file, "%f,%f,%f,%f,%f,%f\n", a,b,perfil[i*ncols+w],stla,stlo,c);
-				fprintf(out_res, "%f,%f,%f\n", a,b,pnorm[i*ncols+w]);
+				fprintf(out_file, "%f,%f,%f,%f,%f,%f,%d\n", a,b,perfil[i*ncols+w],stla,stlo,c,(int)pnorm[i*ncols+w]);
 			}
 		}
 	}
 	fclose(out_file);
-	fclose(out_res);
 	/* Alliberar memòria */
 	free(perfil);
 	free(pnorm);
