@@ -27,6 +27,6 @@ X (distance in km), Z (depth in km), A (amplitude), LAT, LON, Z (depth in deg), 
 
 To run the program:
 
-    ccp [parameter file] [RF list file - with full paths]
+    ccp [parameter file] [RF list file]
     
 RFs in the list must include the full path.
