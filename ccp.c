@@ -25,19 +25,18 @@
 #define KM2DEG 0.00899321
 #define EARTHRAD 6371.0
 
-/* Funció per calcular la distància sobre el cercle màxim entre dos
- * punts, així com l'azimut */
+/* Function to calculate great circle distance and azimuth between two points */
 void garc(float lat0, float lon0, float lat1, float lon1, float *dist, float *az){
 	float dlon, angle, az_angle, x, y;
 
 	lat0 *= DEG2RAD; lon0 *= DEG2RAD; lat1 *= DEG2RAD; lon1 *= DEG2RAD;
 	dlon = lon1-lon0;
 
-	/* Distància */
+	/* distance */
 	angle = acos(sin(lat0)*sin(lat1)+cos(lat0)*cos(lat1)*cos(dlon));
 	*dist = angle*RAD2DEG*DEG2KM;
 
-	/* Azimut */
+	/* azimuth */
 	x = sin(dlon)*cos(lat1);
 	y = cos(lat0)*sin(lat1)-sin(lat0)*cos(lat1)*cos(dlon);
 	az_angle = atan2(x,y);
@@ -48,7 +47,7 @@ void garc(float lat0, float lon0, float lat1, float lon1, float *dist, float *az
 	}
 }
 
-/* Funció per projectar un punt sobre un perfil */
+/* Function to project a point onto a profile */
 void proj(float dist, float az0, float az1, float *x, float *y){
 	float azdiff;
 
@@ -58,10 +57,10 @@ void proj(float dist, float az0, float az1, float *x, float *y){
 	*y = dist*sin(azdiff);
 }
 
-/* Funció principal */
+/* MAIN */
 int main(int argc, char **argv){
 
-	int t0, w, n, wsum, nlen, nerr, nlay, ncols, max=MAX, i, j, k, ray;
+	int w, n, wsum, nlen, nerr, nlay, ncols, max=MAX, i, j, k, ray, wave;
 	float delta, dx, dz, dep, depmin, depmax, beg, p, array[MAX], z,
 	inilat, inilon, finlat, finlon, len, azim, stla, stlo, baz, hw,
 	az0, az1, dist0, dist1, x, y, xi, yi, ds, dt, a, b, c, up, us, zf, nu,
@@ -70,7 +69,6 @@ int main(int argc, char **argv){
 	char rf[500], outfile[500], model[500], pvar[20];
 	FILE *prm_file, *list_file, *mod_file, *out_file;
 
-	/* Arrays de l'FFT */
 	fftw_complex fftin[MAX], fftout[MAX], phase;
 	fftw_plan plan1, plan2;
 
@@ -82,7 +80,7 @@ int main(int argc, char **argv){
 	char *prm = argv[1];
 	char *rflist = argv[2];
 
-	/* ---------Comprovar si existeix el fitxer de paràmetres-------- */
+	/* Checking if parameter file exists */
 	prm_file = fopen(prm, "r");
 	if(prm_file == NULL){
 		printf("\nParameter file doesn't exist.\n");
@@ -92,11 +90,11 @@ int main(int argc, char **argv){
 	printf("\n*******************************************************\n");
 	printf("******************** CCP STACKING *********************\n");
 	printf("*******************************************************\n");
-	printf("per Joan A. Parera Portell (2023)\n");
+	printf("by Joan A. Parera Portell (2023)\n");
 	printf("\nPar. file: %s\n", prm);
 	printf("RF file: %s\n", rflist);
 
-	/* ---------------Lectura del fitxer de paràmetres--------------- */
+	/* Reading parameter file */
 	printf("\n-Parameters-\n");
 	w=0;
 	wsum=0;
@@ -104,7 +102,6 @@ int main(int argc, char **argv){
 	w=fscanf(prm_file, "%f", &inilon); wsum += w;
 	w=fscanf(prm_file, "%f", &finlat); wsum += w;
 	w=fscanf(prm_file, "%f", &finlon); wsum += w;
-	w=fscanf(prm_file, "%d", &t0); wsum += w;
 	w=fscanf(prm_file, "%f,%f", &dx, &dz); wsum += w;
 	w=fscanf(prm_file, "%f,%f", &depmin, &depmax); wsum += w;
 	w=fscanf(prm_file, "%f", &hw); wsum += w;
@@ -113,10 +110,12 @@ int main(int argc, char **argv){
 	w=fscanf(prm_file, "%s", pvar); wsum += w;
 	w=fscanf(prm_file, "%f", &zv); wsum += w;
 	w=fscanf(prm_file, "%f", &nu); wsum += w;
+	w=fscanf(prm_file, "%d", &wave); wsum += w;
 	w=fscanf(prm_file, "%f", &freq); wsum += w;
 	w=fscanf(prm_file, "%d", &ray); wsum += w;
 	fclose(prm_file);
 
+	/* Checking if parameters are read correctly */
 	if(wsum != 17){
 		printf("Error reading parameter file. Exiting...\n");
 		exit(1);
@@ -124,18 +123,20 @@ int main(int argc, char **argv){
 
 	printf("Initial lat/lon: \t%.2f %.2f deg\n", inilat, inilon);
 	printf("Final lat/lon: \t\t%.2f %.2f deg\n", finlat, finlon);
-	printf("Initial time: \t\t%d s\n", t0);
 	printf("Delta x and delta z: \t%.2f %.2f km\n", dx, dz);
 	printf("Min/max depths: \t%.2f %.2f km\n", depmin, depmax);
 	printf("Half width: \t\t%.2f km\n", hw);
 	printf("Output slice: \t\t%s\n", outfile);
 	printf("Earth model: \t\t%s\n", model);
 	printf("Ray param. variable: \t%s\n", pvar);
-	printf("Depth scaling exp. term:%.2f\n", zv);
-	printf("Phase weight exp. term: %.2f\n", nu);
+	printf("Depth scaling term: \t%.2f\n", zv);
+	printf("Phase weight term: \t%.2f\n", nu);
+	if(wave==0){printf("Ps or Sp: \t\tPs\n");}
+	else{printf("Ps or Sp: \t\tSp\n");}
 	printf("RF frequency: \t\t%.2f\n", freq);
 	printf("FZ (0) or rays (1): \t%d\n", ray);
 
+	/* Checking if list and Earth model exist */
 	list_file = fopen(rflist, "r");
 	if(list_file == NULL){
 		printf("\nList file doesn't exist.\n");
@@ -149,6 +150,7 @@ int main(int argc, char **argv){
 		exit(1);
 	}
 
+	/* Building layered model from Earth model file */
 	nlay=round(depmax/dz);
 	struct earthmodel{
 		float dep0[1000], vp0[1000], vs0[1000];
@@ -191,24 +193,25 @@ int main(int argc, char **argv){
 		}
 	}
 
-	/* ------------------Inicialització del perfil------------------- */
+	/* Profile initialization */
 	garc(inilat,inilon,finlat,finlon,&len,&azim);
 	ncols = round(len/dx);
 	printf("\nProfile length: %.2f km\n", len);
 	printf("Profile azimuth: %.2f deg\n", azim);
 	printf("Profile size: %dx%d\n", ncols, nlay-(int)(depmin/dz));
 
-	float* perfil = calloc(ncols * nlay, sizeof(float));
-	float* pnorm  = calloc(ncols * nlay, sizeof(float));
-	float* absphase = calloc(ncols * nlay, sizeof(float));
-	fftw_complex* pphase = calloc(ncols * nlay, sizeof(fftw_complex));
+	float* perfil=calloc(ncols*nlay, sizeof(float));
+	float* pnorm=calloc(ncols*nlay, sizeof(float));
+	float* absphase=calloc(ncols*nlay, sizeof(float));
+	fftw_complex* pphase=calloc(ncols*nlay, sizeof(fftw_complex));
 
-	/* --------------Start looping through Rfs in list--------------- */
+	/* Read list of RF and start main loop */
 	list_file = fopen(rflist, "r");
 	w = 0;
 	printf("\nProcessing RFs...");
 	while(fgets(rf,500,list_file) != NULL){
 		sscanf(rf,"%s",rf);
+		/* Read sac file */
 		rsac1(rf, array, &nlen, &beg, &delta, &max, &nerr, strlen(rf));
 
 		if (nerr != 0){
@@ -216,11 +219,13 @@ int main(int argc, char **argv){
 			exit (nerr);
 		}
 
+		/* Call getfhv to get variables from header */
 		getfhv(pvar, &p, &nerr, strlen(pvar));
 		getfhv("BAZ", &baz, &nerr, strlen("BAZ"));
 		getfhv("STLA", &stla, &nerr, strlen("STLA"));
 		getfhv("STLO", &stlo, &nerr, strlen("STLO"));
 
+		/* Calculate analytic signal and instantaneous phase for phase weighting */
 		if(ray==0){
 			if(w==0){
 				plan1 = fftw_plan_dft_1d(nlen, fftin, fftin, FFTW_FORWARD, FFTW_ESTIMATE);
@@ -230,78 +235,86 @@ int main(int argc, char **argv){
 				fftin[j] = array[j];
 			}
 			fftw_execute(plan1);
+			/* analytic signal */
 			for(j=0;j<nlen;j++){
 				if(j>=nlen/2){
 					fftin[j] = 0;
 				}
 			}
+			/* instantaneous phase */
 			fftw_execute(plan2);
 			for(j=0;j<nlen;j++){
 				fftout[j] /= (nlen/2);
 				if(cabs(fftout[j]) > 0) {
 					fftout[j] /= cabs(fftout[j]);
 				}
+				else{fftout[j]=0;}
 			}
 		}
 		w++;
 
+		/* Starting point of the seismic ray */
 		garc(inilat,inilon,stla,stlo,&dist0,&az0);
 		proj(dist0,az0,azim,&x,&y);
 		stx = x;
-
+		/* Checking start time of RFs */
 		if(beg<0){acctime = -beg;}
 		else{acctime = beg;}
 
+		/* Looping through all depth layers */
 		for(j=0; j<nlay; j++){
+			/* Flat Earth transformation */
 			up = 1/((EARTHRAD/(EARTHRAD-j*dz))*emod.vp[j]);
 			us = 1/((EARTHRAD/(EARTHRAD-j*dz))*emod.vs[j]);
 			a = -EARTHRAD*log((EARTHRAD-(j+1)*dz)/EARTHRAD);
 			zf = -EARTHRAD*log((EARTHRAD-j*dz)/EARTHRAD);
 			dzf = a-zf;
-			ds = p*dzf/sqrtf(us*us-p*p);
-
+			/* Calculating epicentral distance between piercing points j and j+1 */
+			if(wave == 0){ds = p*dzf/sqrtf(us*us-p*p);}
+			else{ds = p*dzf/sqrtf(up*up-p*p);}
+			/* Calculating tau (Shearer, 2009) */
 			a = us*us-p*p;
 			b = up*up-p*p;
 
 			if(a>0 && b>0){
+				/* Ps time */
 				dt = sqrtf(a)*dzf-sqrtf(b)*dzf;
 				acctime += dt;
 				k = round(acctime/delta);
-
-				if(k >= 0 && k < nlen) {
-					amp = array[k];
-					proj(ds,baz,azim,&xi,&yi);
-					x += xi;
-					y += yi;
-					if(ray==0){
-						phase = fftout[k];
-						T = 1/freq;
-						wl = T*(1/us);
-						fzr = sqrtf(0.5*wl*(dz*j)+0.0625*wl*wl);
-						q = powf((dz*j), zv);
-
-						if(fabs(y)<=hw){
-							for(n=0;n<ncols;n++){
-								l = n*dx-x;
-								a = 0.5*1*fzr;
-								b = -0.5*(l*l)/(a*a);
-								if(b < -20){c=0;}
-								else{c = exp(b)/(a*sqrtf(2*PI));}
-								xamp = amp*q*c;
-								if(xamp != 0){
-									perfil[j*ncols+n] += xamp;
-									pnorm[j*ncols+n] += 1;
-									pphase[j*ncols+n] += phase;
-								}
+				amp = array[k];
+				proj(ds,baz,azim,&xi,&yi);
+				x += xi;
+				y += yi;
+				/* If using Fresnel zone */
+				if(ray==0){
+					phase = fftout[k];
+					T = 1/freq;
+					wl = T*(1/us);
+					fzr = sqrtf(0.5*wl*(dz*j)+0.0625*wl*wl);
+					q = powf((dz*j), zv);
+					/* Obtain amplitude with a gaussian function along the Fresnel zone */
+					if(fabs(y)<=hw){
+						for(n=0;n<ncols;n++){
+							l = n*dx-x;
+							a = 0.5*1*fzr;
+							b = -0.5*(l*l)/(a*a);
+							if(b < -20){c=0;}
+							else{c = exp(b)/(a*sqrtf(2*PI));}
+							xamp = amp*q*c;
+							if(xamp != 0){
+								perfil[j*ncols+n] += xamp;
+								pnorm[j*ncols+n] += 1;
+								pphase[j*ncols+n] += phase;
 							}
 						}
 					}
-					else{
-						n = (int)(x/dx);
-						if(n>=0 && x<=len && fabs(y)<=hw){
-							perfil[j*ncols+n] += amp;
-							pnorm[j*ncols+n] += 1;
-						}
+				}
+				/* If using only seismic ray */
+				else{
+					n = (int)(x/dx);
+					if(n>=0 && x<=len && fabs(y)<=hw){
+						perfil[j*ncols+n] += amp;
+						pnorm[j*ncols+n] += 1;
 					}
 				}
 			}
@@ -315,12 +328,12 @@ int main(int argc, char **argv){
 	printf("%d!\n", w);
 	fclose(list_file);
 
-	/* Aplicació de la fase a les amplituds */
+	/* Normalization, phase weighting and smoothing of the profile */
 	if(ray==0){
 		for(i=0; i<nlay; i++){
 			for(w=0; w<ncols; w++){
 				if(pnorm[i*ncols+w] > 0){
-					perfil[i*ncols+w] /= pnorm[i*ncols+w];
+					perfil[i*ncols+w] /= sqrtf(pnorm[i*ncols+w]);
 					absphase[i*ncols+w] = powf(cabs(pphase[i*ncols+w])/pnorm[i*ncols+w],nu);
 					perfil[i*ncols+w] *= absphase[i*ncols+w];
 				}
@@ -328,7 +341,6 @@ int main(int argc, char **argv){
 		}
 		for(i=0; i<nlay; i++){
 			for(w=0; w<ncols; w++){
-				/* Suavitzat per files*/
 				if(w>0){
 					perfil[i*ncols+w] = 0.5*perfil[i*ncols+w]+(1-0.5)*perfil[i*ncols+w-1];
 				}
@@ -357,7 +369,7 @@ int main(int argc, char **argv){
 		}
 	}
 
-	/* Escriptura a un fitxer */
+	/* Writing output file */
 	out_file = fopen(outfile, "w");
 	fprintf(out_file, "%s,%s,%s,%s,%s,%s,%s\n", "x","z","a","lat","lon","zdeg","d");
 	for(i=0; i<nlay; i++){
@@ -376,7 +388,7 @@ int main(int argc, char **argv){
 	}
 	fclose(out_file);
 
-	/* Alliberar memòria */
+	/* Freeing memory */
 	free(perfil);
 	free(pnorm);
 	free(absphase);
