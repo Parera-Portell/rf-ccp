@@ -57,15 +57,25 @@ void proj(float dist, float az0, float az1, float *x, float *y){
 	*y = dist*sin(azdiff);
 }
 
+/* Function to calculate lat/lon */
+void coords(float lat0, float lon0, float dist, float azim, float *lat1, float *lon1) {
+    float a = dist*KM2DEG*DEG2RAD;
+    float az = azim*DEG2RAD;
+    float l0 = lat0*DEG2RAD;
+
+    *lat1 = asin(sin(l0)*cos(a)+cos(l0)*sin(a)*cos(az))*RAD2DEG;
+    *lon1 = lon0+atan2(sin(a)*sin(az),cos(l0)*cos(a)-sin(l0)*sin(a)*cos(az))*RAD2DEG;
+}
+
 /* MAIN */
 int main(int argc, char **argv){
 
-	int w, n, wsum, nlen, nerr, nlay, ncols, max=MAX, i, j, k, ray, wave;
-	float delta, dx, dz, dep, depmin, depmax, beg, p, array[MAX], z,
+	int w, n, wsum, nlen, nerr, nlay, ncols, max=MAX, k, ray, wave;
+	float delta, dx, dz, depmin, depmax, beg, p, array[MAX], z,
 	inilat, inilon, finlat, finlon, len, azim, stla, stlo, baz, hw,
-	az0, az1, dist0, dist1, x, y, xi, yi, ds, dt, a, b, c, up, us, zf, nu,
-	acctime, amp, fzr, wl, xamp, dzf, stx, l, q, zv, modn,
-	x0, x1, y0, y1, T, freq, den, num;
+	az0, dist0, x, y, xi, yi, ds, dt, a, b, c, up, us, zf, nu,
+	acctime, amp, fzr, wl, xamp, dzf, stx, l, q, zv,
+	x0, x1, y0, y1, T, freq;
 	char rf[500], outfile[500], model[500], pvar[20];
 	FILE *prm_file, *list_file, *mod_file, *out_file;
 
@@ -121,9 +131,9 @@ int main(int argc, char **argv){
 		exit(1);
 	}
 
-	printf("Initial lat/lon: \t%.2f %.2f deg\n", inilat, inilon);
-	printf("Final lat/lon: \t\t%.2f %.2f deg\n", finlat, finlon);
-	printf("Delta x and delta z: \t%.2f %.2f km\n", dx, dz);
+	printf("Initial lat/lon: \t%.4f %.4f deg\n", inilat, inilon);
+	printf("Final lat/lon: \t\t%.4f %.4f deg\n", finlat, finlon);
+	printf("Delta x and delta z: \t%.4f %.2f km\n", dx, dz);
 	printf("Min/max depths: \t%.2f %.2f km\n", depmin, depmax);
 	printf("Half width: \t\t%.2f km\n", hw);
 	printf("Output slice: \t\t%s\n", outfile);
@@ -131,8 +141,7 @@ int main(int argc, char **argv){
 	printf("Ray param. variable: \t%s\n", pvar);
 	printf("Depth scaling term: \t%.2f\n", zv);
 	printf("Phase weight term: \t%.2f\n", nu);
-	if(wave==0){printf("Ps or Sp: \t\tPs\n");}
-	else{printf("Ps or Sp: \t\tSp\n");}
+	wave ? printf("Ps or Sp: \t\tSp\n") : printf("Ps or Sp: \t\tPs\n");
 	printf("RF frequency: \t\t%.2f\n", freq);
 	printf("FZ (0) or rays (1): \t%d\n", ray);
 
@@ -168,7 +177,7 @@ int main(int argc, char **argv){
 	fclose(mod_file);
 
 	n=0;
-	for(j=0; j<nlay; j++){
+	for(int j=0; j<nlay; j++){
 		z=dz*j;
 		if(j==0){
 			emod.vp[j]=emod0.vp0[0];
@@ -231,19 +240,19 @@ int main(int argc, char **argv){
 				plan1 = fftw_plan_dft_1d(nlen, fftin, fftin, FFTW_FORWARD, FFTW_ESTIMATE);
 				plan2 = fftw_plan_dft_1d(nlen, fftin, fftout, FFTW_BACKWARD, FFTW_ESTIMATE);
 			}
-			for(j=0;j<nlen;j++){
+			for(int j=0;j<nlen;j++){
 				fftin[j] = array[j];
 			}
 			fftw_execute(plan1);
 			/* analytic signal */
-			for(j=0;j<nlen;j++){
+			for(int j=0;j<nlen;j++){
 				if(j>=nlen/2){
 					fftin[j] = 0;
 				}
 			}
 			/* instantaneous phase */
 			fftw_execute(plan2);
-			for(j=0;j<nlen;j++){
+			for(int j=0;j<nlen;j++){
 				fftout[j] /= (nlen/2);
 				if(cabs(fftout[j]) > 0) {
 					fftout[j] /= cabs(fftout[j]);
@@ -262,7 +271,7 @@ int main(int argc, char **argv){
 		else{acctime = beg;}
 
 		/* Looping through all depth layers */
-		for(j=0; j<nlay; j++){
+		for(int j=0; j<nlay; j++){
 			/* Flat Earth transformation */
 			up = 1/((EARTHRAD/(EARTHRAD-j*dz))*emod.vp[j]);
 			us = 1/((EARTHRAD/(EARTHRAD-j*dz))*emod.vs[j]);
@@ -270,8 +279,8 @@ int main(int argc, char **argv){
 			zf = -EARTHRAD*log((EARTHRAD-j*dz)/EARTHRAD);
 			dzf = a-zf;
 			/* Calculating epicentral distance between piercing points j and j+1 */
-			if(wave == 0){ds = p*dzf/sqrtf(us*us-p*p);}
-			else{ds = p*dzf/sqrtf(up*up-p*p);}
+			float u = wave ? up : us;
+			ds = p*dzf/sqrtf(u*u-p*p);
 			/* Calculating tau (Shearer, 2009) */
 			a = us*us-p*p;
 			b = up*up-p*p;
@@ -287,17 +296,27 @@ int main(int argc, char **argv){
 				y += yi;
 				/* If using Fresnel zone */
 				if(ray==0){
-					phase = fftout[k];
-					T = 1/freq;
-					wl = T*(1/us);
-					fzr = sqrtf(0.5*wl*(dz*j)+0.0625*wl*wl);
-					q = powf((dz*j), zv);
-					/* Obtain amplitude with a gaussian function along the Fresnel zone */
 					if(fabs(y)<=hw){
-						for(n=0;n<ncols;n++){
+						/* Obtain amplitude with a gaussian function along the Fresnel zone */
+						phase = fftout[k];
+						T = 1/freq;
+						wl = T*(1/us);
+						fzr = sqrtf(0.5*wl*(dz*j)+0.0625*wl*wl);
+						q = powf((dz*j), zv);
+						/* Amplitude and maximum distance */
+						a = 0.5*1*fzr;
+						float inv = -0.5/(a*a);
+						float lmax = a*sqrtf(41);
+						/* Bounding positions of FZ */
+						int pos = (int)floorf(x/dx);
+						int radi = (int)ceilf(lmax/dx);
+						int nmin = pos-radi;
+						int nmax = pos+radi;
+						if (nmin < 0) nmin = 0;
+						if (nmax > ncols) nmax = ncols;
+						for(n=nmin;n<nmax;n++){
 							l = n*dx-x;
-							a = 0.5*1*fzr;
-							b = -0.5*(l*l)/(a*a);
+							b = inv*(l*l);
 							if(b < -20){c=0;}
 							else{c = exp(b)/(a*sqrtf(2*PI));}
 							xamp = amp*q*c;
@@ -311,7 +330,7 @@ int main(int argc, char **argv){
 				}
 				/* If using only seismic ray */
 				else{
-					n = (int)(x/dx);
+					n = round(x/dx);
 					if(n>=0 && x<=len && fabs(y)<=hw){
 						perfil[j*ncols+n] += amp;
 						pnorm[j*ncols+n] += 1;
@@ -330,38 +349,35 @@ int main(int argc, char **argv){
 
 	/* Normalization, phase weighting and smoothing of the profile */
 	if(ray==0){
-		for(i=0; i<nlay; i++){
-			for(w=0; w<ncols; w++){
+		for(int i=0; i<nlay; i++){
+			for(int w=0; w<ncols; w++){
 				if(pnorm[i*ncols+w] > 0){
-					perfil[i*ncols+w] /= sqrtf(pnorm[i*ncols+w]);
+					perfil[i*ncols+w] /= pnorm[i*ncols+w];
 					absphase[i*ncols+w] = powf(cabs(pphase[i*ncols+w])/pnorm[i*ncols+w],nu);
 					perfil[i*ncols+w] *= absphase[i*ncols+w];
 				}
 			}
 		}
-		for(i=0; i<nlay; i++){
-			for(w=0; w<ncols; w++){
+		for(int i=0; i<nlay; i++){
+			for(int w=0; w<ncols; w++){
+				/* Suavitzat per files*/
 				if(w>0){
 					perfil[i*ncols+w] = 0.5*perfil[i*ncols+w]+(1-0.5)*perfil[i*ncols+w-1];
 				}
 			}
-		}
-		for(i=0; i<nlay; i++){
-			for(w=ncols-1; w>=0; w--){
+			for(int w=ncols-1; w>=0; w--){
 				if(w<ncols-1){
 					perfil[i*ncols+w] = 0.5*perfil[i*ncols+w]+(1-0.5)*perfil[i*ncols+w+1];
 				}
 			}
 		}
-		for(w=0; w<ncols; w++){
-			for(i=0; i<nlay; i++){
+		for(int w=0; w<ncols; w++){
+			for(int i=0; i<nlay; i++){
 				if(i>0){
 					perfil[i*ncols+w] = 0.5*perfil[i*ncols+w]+(1-0.5)*perfil[(i-1)*ncols+w];
 				}
 			}
-		}
-		for(w=0; w<ncols; w++){
-			for(i=nlay-1; i>=0; i--){
+			for(int i=nlay-1; i>=0; i--){
 				if(i<nlay-1){
 					perfil[i*ncols+w] = 0.5*perfil[i*ncols+w]+(1-0.5)*perfil[(i+1)*ncols+w];
 				}
@@ -372,17 +388,14 @@ int main(int argc, char **argv){
 	/* Writing output file */
 	out_file = fopen(outfile, "w");
 	fprintf(out_file, "%s,%s,%s,%s,%s,%s,%s\n", "x","z","a","lat","lon","zdeg","d");
-	for(i=0; i<nlay; i++){
-		for(w=0; w<ncols; w++){
+	for(int i=0; i<nlay; i++){
+		for(int w=0; w<ncols; w++){
 			a = w*dx+dx/2;
 			b = i*dz+dz/2;
-			stla = asin(sin(inilat * DEG2RAD) * cos(a * KM2DEG * DEG2RAD) + cos(inilat * DEG2RAD) * sin(a * KM2DEG * DEG2RAD) * cos(azim * DEG2RAD)) * RAD2DEG;
-			num = sin(a * KM2DEG * DEG2RAD) * sin(azim * DEG2RAD);
-			den = cos(inilat * DEG2RAD) * cos(a * KM2DEG * DEG2RAD) - sin(inilat * DEG2RAD) * sin(a * KM2DEG * DEG2RAD) * cos(azim * DEG2RAD);
-			stlo = inilon + atan2(num, den) * RAD2DEG;
+			coords(inilat,inilon,a,azim,&stla,&stlo);
 			c = b*KM2DEG;
 			if(i*dz>=depmin){
-				fprintf(out_file, "%f,%f,%f,%f,%f,%f,%d\n", a,b,perfil[i*ncols+w],stla,stlo,c,(int)pnorm[i*ncols+w]);
+				fprintf(out_file, "%f,%f,%f,%f,%f,%f,%d\n", a*100,b,perfil[i*ncols+w],stla,stlo,c,(int)pnorm[i*ncols+w]);
 			}
 		}
 	}
